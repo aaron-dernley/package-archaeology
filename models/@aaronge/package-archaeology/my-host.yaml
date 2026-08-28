@@ -1,0 +1,8 @@
+type: '@aaronge/package-archaeology'
+typeVersion: 2026.08.28.1
+id: ec2ec30c-a8b1-4f74-aacf-11b66b8eebb4
+name: my-host
+version: 1
+tags: {}
+globalArguments: {}
+methods: {}
