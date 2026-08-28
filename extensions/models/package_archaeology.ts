@@ -45,6 +45,7 @@ async function runCommand(cmd: string, args: string[]): Promise<CommandResult> {
   };
 }
 
+/** One `.list` file's package name and mtime, before sorting/filtering. */
 export interface ListFileEntry {
   package: string;
   mtimeEpoch: number;
