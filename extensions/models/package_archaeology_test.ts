@@ -3,7 +3,11 @@ import {
   createModelTestContext,
   withMockedCommand,
 } from "jsr:@swamp-club/swamp-testing@0.20260824.32";
-import { model, parseListFiles } from "./package_archaeology.ts";
+import {
+  model,
+  parseListFiles,
+  renderPrometheus,
+} from "./package_archaeology.ts";
 
 function asContext<T>(context: unknown): T {
   return context as T;
@@ -173,4 +177,29 @@ Deno.test("findOldest throws when no .list files are found at all", async () => 
     "No .list files found",
   );
   assertEquals(getWrittenResources().length, 0);
+});
+
+Deno.test("renderPrometheus: matches the old textfile format", () => {
+  assertEquals(
+    renderPrometheus({
+      packages: [{ package: "apt", currentVersion: "3.0.3", ageDays: 400 }],
+      totalPackagesScanned: 1946,
+    }),
+    "# HELP package_archaeology_oldest_age_days Age in days of the oldest-touched installed package (last dpkg touch, not necessarily original install), labeled with the package's name and version.\n" +
+      "# TYPE package_archaeology_oldest_age_days gauge\n" +
+      'package_archaeology_oldest_age_days{package="apt",version="3.0.3"} 400\n' +
+      "# HELP package_archaeology_total_scanned Total installed packages scanned for this snapshot.\n" +
+      "# TYPE package_archaeology_total_scanned gauge\n" +
+      "package_archaeology_total_scanned 1946\n",
+  );
+});
+
+Deno.test("renderPrometheus: null version renders empty, empty snapshot omits oldest", () => {
+  const text = renderPrometheus({
+    packages: [{ package: "gone", currentVersion: null, ageDays: 1 }],
+    totalPackagesScanned: 1,
+  });
+  assert(text.includes('{package="gone",version=""} 1'));
+  const empty = renderPrometheus({ packages: [], totalPackagesScanned: 0 });
+  assert(!empty.includes("oldest_age_days"));
 });

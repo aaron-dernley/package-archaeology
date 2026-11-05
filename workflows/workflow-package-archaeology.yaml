@@ -1,0 +1,43 @@
+id: 465fe233-2dff-42bd-b8c7-094bc5e46ac0
+name: "@aaronge/package-archaeology"
+description: >-
+  Finds the oldest-touched installed dpkg packages, then exports the oldest
+  one's age and the scan size as a Prometheus textfile metric for the Fun
+  Stuff dashboard. Ships in the package and is scheduled by `swamp serve`
+  through trigger.schedule (daily 07:15) — this replaces the systemd
+  timer + run-via-serve.sh, which is now legacy. The export job runs only
+  after a successful scan, as the wrapper did (set -e).
+version: 1
+tags: {}
+trigger:
+  schedule: "15 7 * * *"
+jobs:
+  - name: scan
+    description: List the oldest-touched installed packages.
+    steps:
+      - name: findOldest
+        task:
+          type: model_method
+          modelIdOrName: my-host
+          methodName: findOldest
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    dependsOn: []
+    weight: 0
+  - name: export
+    description: Write /var/lib/prometheus/node-exporter/package-archaeology.prom.
+    dependsOn:
+      - job: scan
+        condition:
+          type: succeeded
+    steps:
+      - name: exportMetrics
+        task:
+          type: model_method
+          modelIdOrName: my-host
+          methodName: exportMetrics
+        dependsOn: []
+        weight: 0
+        allowFailure: false
+    weight: 0

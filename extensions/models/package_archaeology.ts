@@ -122,6 +122,54 @@ interface MethodContext {
     name: string,
     data: Record<string, unknown>,
   ) => Promise<{ name: string }>;
+  readResource: (
+    instanceName: string,
+    version?: number,
+  ) => Promise<Record<string, unknown> | null>;
+}
+
+/** Default textfile-collector path for `exportMetrics`. */
+const DEFAULT_PROM_PATH =
+  "/var/lib/prometheus/node-exporter/package-archaeology.prom";
+
+/** Escape a Prometheus label value: backslash, then double quote. */
+function promEscape(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
+/**
+ * Render an `oldestPackages` snapshot as Prometheus text-exposition lines,
+ * in the exact format run-via-serve.sh's inline Python wrote (the Fun Stuff
+ * dashboard reads these names and labels). An empty snapshot omits the
+ * oldest-package series rather than guessing one.
+ */
+export function renderPrometheus(
+  snapshot: {
+    packages: Array<
+      { package: string; currentVersion: string | null; ageDays: number }
+    >;
+    totalPackagesScanned: number;
+  },
+): string {
+  const out: string[] = [];
+  const oldest = snapshot.packages[0];
+  if (oldest) {
+    out.push(
+      "# HELP package_archaeology_oldest_age_days Age in days of the oldest-touched installed package (last dpkg touch, not necessarily original install), labeled with the package's name and version.",
+      "# TYPE package_archaeology_oldest_age_days gauge",
+      `package_archaeology_oldest_age_days{package="${
+        promEscape(oldest.package)
+      }",version="${
+        promEscape(oldest.currentVersion ?? "")
+      }"} ${oldest.ageDays}`,
+    );
+  }
+  out.push(
+    "# HELP package_archaeology_total_scanned Total installed packages scanned for this snapshot.",
+    "# TYPE package_archaeology_total_scanned gauge",
+    `package_archaeology_total_scanned ${snapshot.totalPackagesScanned}`,
+  );
+  return out.join("\n") + "\n";
 }
 
 const METHODOLOGY =
@@ -220,6 +268,42 @@ export const model = {
           },
         );
         return { dataHandles: [handle] };
+      },
+    },
+    exportMetrics: {
+      description:
+        "Write the oldest package's age and the scan size as a Prometheus " +
+        "textfile-collector file. Written atomically (tmp file + rename) " +
+        "since node_exporter may be reading the directory concurrently. " +
+        "Throws if there is no snapshot yet, leaving any existing file " +
+        "alone. Writes no swamp data.",
+      arguments: z.object({
+        path: z.string().default(DEFAULT_PROM_PATH).describe(
+          "Destination .prom file inside node_exporter's textfile directory.",
+        ),
+      }),
+      execute: async (args: { path: string }, context: MethodContext) => {
+        const raw = await context.readResource("oldestPackages");
+        const parsed = OldestPackagesSchema.safeParse(raw);
+        if (!parsed.success) {
+          throw new Error(
+            "No valid oldestPackages snapshot to export — run findOldest first.",
+          );
+        }
+        const body = renderPrometheus(parsed.data);
+        const dir = args.path.slice(0, args.path.lastIndexOf("/")) || ".";
+        const base = args.path.slice(args.path.lastIndexOf("/") + 1);
+        const tmp = await Deno.makeTempFile({ dir, prefix: `.${base}.` });
+        try {
+          await Deno.writeTextFile(tmp, body);
+          await Deno.chmod(tmp, 0o644);
+          await Deno.rename(tmp, args.path);
+        } catch (err) {
+          await Deno.remove(tmp).catch(() => {});
+          throw err;
+        }
+        context.logger.info("Wrote {path}", { path: args.path });
+        return { dataHandles: [] };
       },
     },
   },

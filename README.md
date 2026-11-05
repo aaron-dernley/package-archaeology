@@ -49,10 +49,34 @@ touch date, and age in days.
   `dpkg-query`). A package removed between listing and querying reports
   `currentVersion: null` rather than failing the whole run.
 
+- **`exportMetrics`** — writes the oldest package's age (labeled with
+  its name and version) and the scan size as a Prometheus textfile-collector
+  file, `/var/lib/prometheus/node-exporter/package-archaeology.prom` by
+  default (`--input path=...` to change it). Written atomically (tmp file +
+  rename). Throws if there's no snapshot yet. Writes no swamp data.
+
 ## Workflow
 
-None bundled. Run `findOldest` whenever curiosity strikes — it's a cheap,
-read-only filesystem scan (no network, no root required).
+The `@aaronge/package-archaeology` workflow ships in the package, so
+`swamp extension pull @aaronge/package-archaeology` brings it along. It
+carries its own `trigger.schedule` (`15 7 * * *`), so a running
+`swamp serve` runs `findOldest` daily at 07:15 and then `exportMetrics`.
+`findOldest` is a cheap, read-only filesystem scan (no network, no root
+required). The export only runs after a successful scan.
+
+The consuming repo needs a `my-host` model instance:
+
+```bash
+swamp model create @aaronge/package-archaeology my-host
+swamp workflow run @aaronge/package-archaeology   # one manual run
+```
+
+To change the time without editing the package:
+`swamp workflow trigger set @aaronge/package-archaeology --schedule "0 9 * * *"`.
+
+`run-via-serve.sh` is legacy: it ran `findOldest` from a systemd timer
+through a throwaway `swamp serve`, then wrote the textfile with inline
+Python. It's kept for reference only.
 
 ## License
 
