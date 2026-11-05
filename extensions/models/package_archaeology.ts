@@ -139,8 +139,8 @@ function promEscape(value: string): string {
 
 /**
  * Render an `oldestPackages` snapshot as Prometheus text-exposition lines,
- * in the exact format run-via-serve.sh's inline Python wrote (the Fun Stuff
- * dashboard reads these names and labels). An empty snapshot omits the
+ * in the exact format the removed run-via-serve.sh wrapper's inline Python
+ * wrote (the Fun Stuff dashboard reads these names and labels). An empty snapshot omits the
  * oldest-package series rather than guessing one.
  */
 export function renderPrometheus(

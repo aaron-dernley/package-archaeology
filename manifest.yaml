@@ -1,6 +1,6 @@
 manifestVersion: 1
 name: "@aaronge/package-archaeology"
-version: "2026.11.05.1"
+version: "2026.11.05.2"
 description: "Finds the oldest-touched installed dpkg packages on a Debian/apt-based host, using each package's /var/lib/dpkg/info/<name>.list file mtime as an approximate (honestly-caveated) install date — fun trivia about your system's history."
 
 repository: https://github.com/aaron-dernley/package-archaeology
